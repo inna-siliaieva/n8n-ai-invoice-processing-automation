@@ -1,0 +1,664 @@
+{
+  "name": "AI Document & Invoice Processing Automation",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "Invoice Processing",
+        "formDescription": "Upload an invoice for automated data extraction and processing.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Invoice",
+              "fieldType": "file",
+              "requiredField": true
+            }
+          ]
+        },
+        "responseMode": "lastNode",
+        "options": {
+          "respondWithOptions": {
+            "values": {
+              "formSubmittedText": "={{ $json.message }}"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.6,
+      "position": [
+        -448,
+        -48
+      ],
+      "name": "Upload Invoice"
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "binaryPropertyName": "Invoice",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.1,
+      "position": [
+        -224,
+        -48
+      ],
+      "name": "Extract Invoice Text"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Extract structured invoice data from the invoice text below.\n\nReturn the data strictly according to the connected output parser schema.\n\nRules:\n- Return only the requested structured data.\n- Do not add explanations or markdown.\n- Monetary values must be numbers only, without currency symbols or thousands separators.\n- vat_rate must be a number only, for example 19.\n- Dates must remain in DD.MM.YYYY format.\n- currency must contain only the currency code, for example EUR.\n- Do not invent missing information.\n\nInvoice text:\n\n{{ $json.text }}",
+        "hasOutputParser": true,
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        0,
+        -48
+      ],
+      "name": "AI Extract Invoice Data"
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"supplier_name\": \"\",\n  \"supplier_address\": \"\",\n  \"supplier_vat_id\": \"\",\n  \"invoice_number\": \"\",\n  \"invoice_date\": \"\",\n  \"due_date\": \"\",\n  \"currency\": \"\",\n  \"project\": \"\",\n  \"customer_name\": \"\",\n  \"net_amount\": 0,\n  \"vat_rate\": 0,\n  \"vat_amount\": 0,\n  \"total_amount\": 0,\n  \"payment_reference\": \"\"\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        144,
+        160
+      ],
+      "name": "Parse Invoice Data"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.5-flash",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        -112,
+        160
+      ],
+      "name": "Gemini Invoice Model"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "ab7b33cd-53d5-467d-b8a2-3b541ca5f86c",
+              "leftValue": "={{ $json.output.supplier_name }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "d3207a39-46be-48df-88e4-0bf09ebdcd38",
+              "leftValue": "={{ $json.output.invoice_number }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "008a1883-ac35-4695-b254-e93f44e22592",
+              "leftValue": "={{ $json.output.total_amount }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            },
+            {
+              "id": "5d20e3aa-9cae-4508-b246-2f91a7f4dd1a",
+              "leftValue": "={{ $json.output.currency }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        368,
+        -48
+      ],
+      "name": "Validate Invoice Data"
+    },
+    {
+      "parameters": {
+        "dataTableId": {
+          "__rl": true,
+          "value": "YOUR_DATA_TABLE_ID",
+          "mode": "list",
+          "cachedResultName": "Processed Invoices"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "supplier_name": "={{ $('AI Extract Invoice Data').item.json.output.supplier_name }}",
+            "supplier_address": "={{ $('AI Extract Invoice Data').item.json.output.supplier_address }}",
+            "supplier_vat_id": "={{ $('AI Extract Invoice Data').item.json.output.supplier_vat_id }}",
+            "invoice_number": "={{ $('AI Extract Invoice Data').item.json.output.invoice_number }}",
+            "invoice_date": "={{ $('AI Extract Invoice Data').item.json.output.invoice_date }}",
+            "due_date": "={{ $('AI Extract Invoice Data').item.json.output.due_date }}",
+            "currency": "={{ $('AI Extract Invoice Data').item.json.output.currency }}",
+            "customer_name": "={{ $('AI Extract Invoice Data').item.json.output.customer_name }}",
+            "net_amount": "={{ $('AI Extract Invoice Data').item.json.output.net_amount }}",
+            "vat_rate": "={{ $('AI Extract Invoice Data').item.json.output.vat_rate }}",
+            "vat_amount": "={{ $('AI Extract Invoice Data').item.json.output.vat_amount }}",
+            "total_amount": "={{ $('AI Extract Invoice Data').item.json.output.total_amount }}",
+            "payment_reference": "={{ $('AI Extract Invoice Data').item.json.output.payment_reference }}",
+            "project": "={{ $('AI Extract Invoice Data').item.json.output.project }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "supplier_name",
+              "displayName": "supplier_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "supplier_address",
+              "displayName": "supplier_address",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "supplier_vat_id",
+              "displayName": "supplier_vat_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "invoice_number",
+              "displayName": "invoice_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "invoice_date",
+              "displayName": "invoice_date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "due_date",
+              "displayName": "due_date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "currency",
+              "displayName": "currency",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "project",
+              "displayName": "project",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "customer_name",
+              "displayName": "customer_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "net_amount",
+              "displayName": "net_amount",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "vat_rate",
+              "displayName": "vat_rate",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "vat_amount",
+              "displayName": "vat_amount",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "total_amount",
+              "displayName": "total_amount",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "payment_reference",
+              "displayName": "payment_reference",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1008,
+        -112
+      ],
+      "name": "Save Invoice"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "YOUR_DATA_TABLE_ID",
+          "mode": "list",
+          "cachedResultName": "Processed Invoices"
+        },
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "invoice_number",
+              "keyValue": "={{ $json.output.invoice_number }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        576,
+        -240
+      ],
+      "name": "Find Existing Invoice",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "6e716f99-8645-4b1d-90e2-f7f06239013a",
+              "leftValue": "={{ $json.id !== undefined && $json.id !== null }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        800,
+        -208
+      ],
+      "name": "Is Duplicate Invoice?"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "8e421695-39b4-4ae5-84df-35d6928726a9",
+              "name": "status",
+              "value": "duplicate",
+              "type": "string"
+            },
+            {
+              "id": "b73fc9e1-587b-40a2-a4fc-64083ca6cb79",
+              "name": "message",
+              "value": "Invoice already exists and was not saved.",
+              "type": "string"
+            },
+            {
+              "id": "65632ba7-ddc4-4261-a219-e79f131cf8e8",
+              "name": "invoice_number",
+              "value": "={{ $('AI Extract Invoice Data').item.json.output.invoice_number }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        1232,
+        -320
+      ],
+      "name": "Duplicate Invoice Detected"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "e3ba2212-e2ce-43da-b04f-a23349e042b9",
+              "name": "status",
+              "value": "saved",
+              "type": "string"
+            },
+            {
+              "id": "289f2c5a-95ab-4cd2-a8f4-4dbe0662df8b",
+              "name": "message",
+              "value": "Invoice processed and saved successfully.",
+              "type": "string"
+            },
+            {
+              "id": "cd649b48-ba8c-465f-8dee-5068937cd944",
+              "name": "invoice_number",
+              "value": "={{ $('AI Extract Invoice Data').item.json.output.invoice_number }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        1232,
+        -112
+      ],
+      "name": "Invoice Saved Successfully"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b8cb79fb-a35b-4708-a437-78463b62f6e6",
+              "name": "status",
+              "value": "invalid",
+              "type": "string"
+            },
+            {
+              "id": "69f0fe3b-c072-4087-864c-16c74a2725fc",
+              "name": "message",
+              "value": "Invoice validation failed. Required fields are missing or invalid.",
+              "type": "string"
+            },
+            {
+              "id": "f7ce5820-fabd-4ea9-acd6-9648692bfd28",
+              "name": "invoice_number",
+              "value": "={{ $('AI Extract Invoice Data').item.json.output.invoice_number }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        1248,
+        176
+      ],
+      "name": "Invoice Validation Failed"
+    },
+    {
+      "parameters": {
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        1456,
+        -112
+      ],
+      "name": "Final Response"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Upload Invoice": {
+      "main": [
+        [
+          {
+            "node": "Extract Invoice Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Invoice Text": {
+      "main": [
+        [
+          {
+            "node": "AI Extract Invoice Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Invoice Data": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "AI Extract Invoice Data",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Invoice Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Extract Invoice Data",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Extract Invoice Data": {
+      "main": [
+        [
+          {
+            "node": "Validate Invoice Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Invoice Data": {
+      "main": [
+        [
+          {
+            "node": "Find Existing Invoice",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Invoice Validation Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Existing Invoice": {
+      "main": [
+        [
+          {
+            "node": "Is Duplicate Invoice?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Duplicate Invoice?": {
+      "main": [
+        [
+          {
+            "node": "Duplicate Invoice Detected",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Save Invoice",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Invoice": {
+      "main": [
+        [
+          {
+            "node": "Invoice Saved Successfully",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Invoice Saved Successfully": {
+      "main": [
+        [
+          {
+            "node": "Final Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Duplicate Invoice Detected": {
+      "main": [
+        [
+          {
+            "node": "Final Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Invoice Validation Failed": {
+      "main": [
+        [
+          {
+            "node": "Final Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "nodeGroups": [],
+  "tags": []
+}
